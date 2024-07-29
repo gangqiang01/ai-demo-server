@@ -1,0 +1,13 @@
+#
+# Normal rules
+#
+*.tar.*
+*.exe
+*.db
+*.o
+*.obj
+*.log
+Device-Monitor
+Device-Monitor.exe
+certs
+/frontend
