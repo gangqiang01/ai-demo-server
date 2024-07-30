@@ -26,9 +26,11 @@ func InitRouter() *gin.Engine {
 	apiv1 := r.Group("/v1")
 	//ai detect
 	detect := apiv1.Group("aiDetect")
+	detect.GET("/status/:filename", v1.GetDetectStatus)
 	detect.GET("/image/:filename", v1.GetDetectImage)
 	detect.GET("/video/:filename", v1.GetDetectVideo)
-	detect.POST("", v1.AddAiDetect)
+	detect.GET("/detected", v1.GetDetectedFiles)
+	detect.POST("/:type", v1.AddAiDetect)
 	detect.DELETE("/:filename", v1.DeleteAiDetect)
 
 	//support dashboard web

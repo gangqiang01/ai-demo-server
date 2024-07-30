@@ -3,10 +3,12 @@ package v1
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
+	"strings"
 
 	"github.com/edgehook/ithings/common/config"
 	"github.com/edgehook/ithings/common/utils"
@@ -15,6 +17,9 @@ import (
 	responce "github.com/edgehook/ithings/webserver/types"
 	"github.com/gin-gonic/gin"
 )
+
+var detectStatus = make(map[string]string)
+var ffmpegPath = "./ffmpeg/ffmpeg"
 
 func detect(command, detectPath, inputPath string) error {
 	cmd := exec.Command(command, detectPath, inputPath)
@@ -29,10 +34,42 @@ func detect(command, detectPath, inputPath string) error {
 	klog.Infof("Detect output:%s", out.String())
 	return nil
 }
+
+// /home/gangqiangsun/MYPROJECT/TOOLS/ffmpeg-6.0/ffmpeg -i ./demo.mp4 -vcodec libx264 -acodec copy ./demo-convert.mp4
+func ffmpegConvert(filePath, outPath string) error {
+	cmd := exec.Command(ffmpegPath, "-i", filePath, " -vcodec libx264 -acodec copy", outPath)
+	klog.Infof("ffmpeg cmd path: %s, args: %v", cmd.Path, cmd.Args)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		klog.Errorf("Failed to run ffmpeg command:%v ", err)
+		return err
+	}
+	klog.Infof("FFmpeg output:%s", out.String())
+	return nil
+}
+
+func GetDetectStatus(c *gin.Context) {
+	filename := c.Param("filename")
+	val, ok := detectStatus[filename]
+	if !ok {
+		responce.FailWithMessage("file does not exist", c)
+		return
+
+	}
+	responce.OkWithData(val, c)
+}
+
 func GetDetectImage(c *gin.Context) {
 	filename := c.Param("filename")
+	tp := c.Query("type")
 	aiCfg := config.GetAiConfig()
 	filePath := path.Join(aiCfg.OutPath, filename)
+	if tp == "data" {
+		filePath = path.Join(aiCfg.InputPath, filename)
+	}
+
 	image, err := os.ReadFile(filePath)
 	if err != nil {
 		responce.FailWithMessage("Failed to read image file", c)
@@ -46,22 +83,62 @@ func GetDetectImage(c *gin.Context) {
 
 func GetDetectVideo(c *gin.Context) {
 	filename := c.Param("filename")
+	tp := c.Query("type")
 	aiCfg := config.GetAiConfig()
 	filePath := path.Join(aiCfg.OutPath, filename)
-	videoData, err := os.ReadFile(filePath)
+	if tp == "data" {
+		filePath = path.Join(aiCfg.InputPath, filename)
+	}
+
+	file, err := os.Open(filePath)
 	if err != nil {
-		responce.FailWithMessage("Failed to read video file", c)
+		responce.FailWithMessage("File not found", c)
 		return
 	}
-	// 设置HTTP响应头
+	defer file.Close()
+
 	c.Header("Content-Type", "video/mp4")
-	c.Header("Content-Disposition", "inline")
-	c.Data(http.StatusOK, "video/mp4", videoData)
+	c.Header("Content-Disposition", "inline; filename=\""+filename+"\"")
+	_, err = io.Copy(c.Writer, file)
+	if err != nil {
+		responce.FailWithMessage("Read file error", c)
+		return
+	}
+}
+
+func GetDetectedFiles(c *gin.Context) {
+	tp := c.Query("type")
+	aiCfg := config.GetAiConfig()
+	files, err := os.ReadDir(aiCfg.OutPath)
+	if err != nil {
+		responce.FailWithMessage(err.Error(), c)
+		return
+	}
+	fileData := make([]map[string]string, 0)
+	for _, file := range files {
+		filename := file.Name()
+		fileInfo := make(map[string]string)
+		if tp == "video" {
+			if !file.IsDir() && strings.HasSuffix(filename, ".mp4") {
+				fileInfo["filename"] = filename
+				fileData = append(fileData, fileInfo)
+			}
+		} else {
+			if !file.IsDir() && (strings.HasSuffix(filename, ".png") || strings.HasSuffix(filename, ".jpg")) {
+				fileInfo["filename"] = filename
+				fileData = append(fileData, fileInfo)
+			}
+		}
+
+	}
+	responce.OkWithData(fileData, c)
 }
 
 func AddAiDetect(c *gin.Context) {
 
-	file, err := c.FormFile("file") // 获取上传的文件
+	file, err := c.FormFile("file")
+	tp := c.Param("type")
+	// 获取上传的文件
 	if err != nil {
 		responce.FailWithMessage(fmt.Sprintf("Upload file error: %v", err.Error()), c)
 		return
@@ -73,16 +150,39 @@ func AddAiDetect(c *gin.Context) {
 	if utils.DirIsExist(aiCfg.InputPath) {
 		os.MkdirAll(aiCfg.InputPath, os.ModePerm)
 	}
+
 	err = c.SaveUploadedFile(file, dstPath)
 	if err != nil {
 		responce.FailWithMessage(fmt.Sprintf("Save file error: %v", err.Error()), c)
 		return
 	}
-	if err := detect(aiCfg.Command, aiCfg.DetectPath, aiCfg.InputPath); err != nil {
+	detectPath := aiCfg.InputPath
+	if tp == "video" {
+		detectPath = path.Join(detectPath, filename)
+	}
+	detectStatus[filename] = "0"
+	if err := detect(aiCfg.Command, aiCfg.DetectPath, detectPath); err != nil {
+		detectStatus[filename] = "1"
 		responce.FailWithMessage(err.Error(), c)
 		return
 	}
+	if tp == "video" {
+		outPath := path.Join(aiCfg.OutPath, filename)
+		renamePath := path.Join(aiCfg.OutPath, "copy"+filename)
+		err := utils.FileCopy(outPath, renamePath)
+		if err != nil {
+			detectStatus[filename] = "1"
+			responce.FailWithMessage(err.Error(), c)
+			return
+		}
+		if err := ffmpegConvert(renamePath, outPath); err != nil {
+			detectStatus[filename] = "1"
+			responce.FailWithMessage(err.Error(), c)
+			return
+		}
+	}
 
+	detectStatus[filename] = "1"
 	responce.Ok(c)
 }
 
