@@ -1,6 +1,5 @@
 webserver:
   bind_address: :8080
-  bind_dashboard_address: :8082
   ssl: false
   ssl_cert_file: ""
   ssl_key_file: ""
@@ -8,4 +7,5 @@ ai:
   command: python
   detectPath: /home/gangqiangsun/MYPROJECT/PYTHON/yolov5/detect.py
   inputPath: /home/gangqiangsun/MYPROJECT/PYTHON/yolov5/input
-  outPath: /home/gangqiangsun/MYPROJECT/PYTHON/yolov5/out
+  outPath: /opt
+  ffmpegPath: ./ffmpeg/ffmpeg

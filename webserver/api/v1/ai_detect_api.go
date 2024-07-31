@@ -175,7 +175,7 @@ func AddAiDetect(c *gin.Context) {
 		}
 		outPath := path.Join(aiCfg.OutPath, filename)
 		displayPath := path.Join(displayDir, filename)
-		time.Sleep(3 * time.Second)
+		time.Sleep(1 * time.Second)
 		if err := ffmpegConvert(aiCfg.FFMPEGPath, outPath, displayPath); err != nil {
 			detectStatus[filename] = "1"
 			responce.FailWithMessage(err.Error(), c)
