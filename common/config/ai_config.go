@@ -5,6 +5,7 @@ type AIConfig struct {
 	DetectPath string
 	InputPath  string
 	OutPath    string
+	FFMPEGPath string
 }
 
 func GetAiConfig() *AIConfig {
@@ -12,10 +13,15 @@ func GetAiConfig() *AIConfig {
 	detectPath := ITHINGS_CONFIG.GetString("ai.detectPath")
 	inputPath := ITHINGS_CONFIG.GetString("ai.inputPath")
 	outPath := ITHINGS_CONFIG.GetString("ai.outPath")
+	ffmpegPath := ITHINGS_CONFIG.GetString("ai.ffmpegPath")
+	if ffmpegPath == "" {
+		ffmpegPath = "./ffmpeg/ffmpeg"
+	}
 	return &AIConfig{
 		Command:    command,
 		DetectPath: detectPath,
 		InputPath:  inputPath,
 		OutPath:    outPath,
+		FFMPEGPath: ffmpegPath,
 	}
 }

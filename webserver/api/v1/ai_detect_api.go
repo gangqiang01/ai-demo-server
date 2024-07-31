@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/edgehook/ithings/common/config"
 	"github.com/edgehook/ithings/common/utils"
@@ -19,7 +20,6 @@ import (
 )
 
 var detectStatus = make(map[string]string)
-var ffmpegPath = "./ffmpeg/ffmpeg"
 
 func detect(command, detectPath, inputPath string) error {
 	cmd := exec.Command(command, detectPath, inputPath)
@@ -36,17 +36,19 @@ func detect(command, detectPath, inputPath string) error {
 }
 
 // /home/gangqiangsun/MYPROJECT/TOOLS/ffmpeg-6.0/ffmpeg -i ./demo.mp4 -vcodec libx264 -acodec copy ./demo-convert.mp4
-func ffmpegConvert(filePath, outPath string) error {
-	cmd := exec.Command(ffmpegPath, "-i", filePath, " -vcodec libx264 -acodec copy", outPath)
+func ffmpegConvert(ffmpegPath, filePath, outPath string) error {
+	cmd := exec.Command(ffmpegPath, "-i", filePath, "-vcodec", "libx264", "-acodec", "copy", "-y", outPath)
 	klog.Infof("ffmpeg cmd path: %s, args: %v", cmd.Path, cmd.Args)
 	var out bytes.Buffer
 	cmd.Stdout = &out
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
 		klog.Errorf("Failed to run ffmpeg command:%v ", err)
 		return err
 	}
-	klog.Infof("FFmpeg output:%s", out.String())
+	klog.Infof("FFmpeg output:%s, error: %v", out.String(), stderr.String())
 	return nil
 }
 
@@ -85,7 +87,7 @@ func GetDetectVideo(c *gin.Context) {
 	filename := c.Param("filename")
 	tp := c.Query("type")
 	aiCfg := config.GetAiConfig()
-	filePath := path.Join(aiCfg.OutPath, filename)
+	filePath := path.Join(aiCfg.OutPath, "display", filename)
 	if tp == "data" {
 		filePath = path.Join(aiCfg.InputPath, filename)
 	}
@@ -147,7 +149,7 @@ func AddAiDetect(c *gin.Context) {
 	aiCfg := config.GetAiConfig()
 	dstPath := path.Join(aiCfg.InputPath, filename)
 	klog.Infof("dstPath: %s", dstPath)
-	if utils.DirIsExist(aiCfg.InputPath) {
+	if !utils.DirIsExist(aiCfg.InputPath) {
 		os.MkdirAll(aiCfg.InputPath, os.ModePerm)
 	}
 
@@ -167,15 +169,14 @@ func AddAiDetect(c *gin.Context) {
 		return
 	}
 	if tp == "video" {
-		outPath := path.Join(aiCfg.OutPath, filename)
-		renamePath := path.Join(aiCfg.OutPath, "copy"+filename)
-		err := utils.FileCopy(outPath, renamePath)
-		if err != nil {
-			detectStatus[filename] = "1"
-			responce.FailWithMessage(err.Error(), c)
-			return
+		displayDir := path.Join(aiCfg.OutPath, "display")
+		if !utils.DirIsExist(displayDir) {
+			os.MkdirAll(displayDir, os.ModePerm)
 		}
-		if err := ffmpegConvert(renamePath, outPath); err != nil {
+		outPath := path.Join(aiCfg.OutPath, filename)
+		displayPath := path.Join(displayDir, filename)
+		time.Sleep(3 * time.Second)
+		if err := ffmpegConvert(aiCfg.FFMPEGPath, outPath, displayPath); err != nil {
 			detectStatus[filename] = "1"
 			responce.FailWithMessage(err.Error(), c)
 			return
@@ -185,14 +186,28 @@ func AddAiDetect(c *gin.Context) {
 	detectStatus[filename] = "1"
 	responce.Ok(c)
 }
-
+func ConvertFormat(c *gin.Context) {
+	filename := c.Param("filename")
+	aiCfg := config.GetAiConfig()
+	displayDir := path.Join(aiCfg.OutPath, "display")
+	if !utils.DirIsExist(displayDir) {
+		os.MkdirAll(displayDir, os.ModePerm)
+	}
+	outPath := path.Join(aiCfg.OutPath, filename)
+	displayPath := path.Join(displayDir, filename)
+	if err := ffmpegConvert(aiCfg.FFMPEGPath, outPath, displayPath); err != nil {
+		responce.FailWithMessage(err.Error(), c)
+		return
+	}
+	responce.Ok(c)
+}
 func DeleteAiDetect(c *gin.Context) {
 	filename := c.Param("filename")
 
 	aiCfg := config.GetAiConfig()
 	inputPath := path.Join(aiCfg.InputPath, filename)
 	outputPath := path.Join(aiCfg.OutPath, filename)
-	os.Remove(inputPath)
-	os.Remove(outputPath)
+	defer os.Remove(inputPath)
+	defer os.Remove(outputPath)
 	responce.Ok(c)
 }

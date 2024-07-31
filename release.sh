@@ -1,29 +1,24 @@
 #!/bin/bash
 
-if [ $# -ne 1 ];
-then
-    echo "Please select os type"
-	echo "./release.sh windows or ./release.sh linux"
-    exit
-fi
-
-ClientVersion=$(cat common/constants/default.go  | grep ClientVersion | sed 's/\"//g')
-ClientVersion=${ClientVersion#*=}
-
-V=$(echo $ClientVersion |awk '{print $1}' |sed 's/ //g' | sed 's/\t//g')
-V=${V:-Beta}
-Version=$(echo $ClientVersion |awk '{print $2}' |sed 's/ //g' | sed 's/\t//g')
+Version=$1
 #Version=${Version:-0.2.0}
-
-OS=$1
-echo "$OS"
-
+PRODUCT_NAME="AI-Demo"
 TARGET_ROOT=`cd "$(dirname "$0")"; pwd`
-#RELEASE_NAME=release_$V-$Version
-RELEASE_NAME=release_${OS}_$V
+RELEASE_NAME=release_$Version
 RELEASE_ROOT=${TARGET_ROOT}/${RELEASE_NAME}
 
-echo "$RELEASE_NAME"
+echo RELEASE_NAME=$RELEASE_NAME
+
+cd ${TARGET_ROOT}/
+
+echo "build x86_64 ${PRODUCT_NAME}... "
+make $PRODUCT_NAME
+echo "build arm64 ${PRODUCT_NAME}... "
+make $PRODUCT_NAME-ARM64
+echo "build arm ${PRODUCT_NAME}... "
+make $PRODUCT_NAME-ARM
+echo "build windows exe ${PRODUCT_NAME}..."
+make $PRODUCT_NAME.exe
 
 if [ ! -d ${RELEASE_ROOT} ]; then
 	rm -rf ${RELEASE_ROOT}		
@@ -31,46 +26,22 @@ fi
 
 [ ! -e ${RELEASE_ROOT} ] && mkdir -p ${RELEASE_ROOT}
 
-cd ${TARGET_ROOT}/
-
-if [ $OS == 'windows' ]
-	then
-		echo "build AppHub-Agent.exe... "
-		make AppHub-Agent.exe
-
-		cd ${TARGET_ROOT}/
-
-		# cp -a ffmpeg ${RELEASE_ROOT}/
-		cp -a conf ${RELEASE_ROOT}/
-		cp -a frontend ${RELEASE_ROOT}/
-		cp  -a AppHub-Agent.exe  ${RELEASE_ROOT}/
-		cp -a winpackage ${RELEASE_ROOT}/
-elif [ $OS == 'linux' ]
-	then
-		echo "build x86_64 AppHub-Agent... "
-		make AppHub-Agent
-
-		if [ ! -d ${RELEASE_ROOT} ]; then
-			rm -rf ${RELEASE_ROOT}		
-		fi
-
-		[ ! -e ${RELEASE_ROOT} ] && mkdir -p ${RELEASE_ROOT}
-
-		# cp -a ffmpeg ${RELEASE_ROOT}/
-		cp -a conf ${RELEASE_ROOT}/
-		cp -a frontend ${RELEASE_ROOT}/
-		cp  -a AppHub-Agent ${RELEASE_ROOT}/
-		cp -a linuxpackage ${RELEASE_ROOT}/
-		[ -a "startup.sh" ] && cp -a startup.sh ${RELEASE_ROOT}/
-
-fi
+cp -a frontend ${RELEASE_ROOT}/
+cp -a conf ${RELEASE_ROOT}/
+cp -a ffmpeg ${RELEASE_ROOT}/
+cp -a ffmpeg-ARM64 ${RELEASE_ROOT}/
+cp  -a $PRODUCT_NAME ${PRODUCT_NAME}-ARM ${PRODUCT_NAME}-ARM64 ${PRODUCT_NAME}.exe ${RELEASE_ROOT}/
+[ -a "startup.sh" ] && cp -a startup.sh ${RELEASE_ROOT}/
+[ -a "AI-Demo.service" ] && cp -a ${PRODUCT_NAME}.service  ${RELEASE_ROOT}/AI-Demo.service
 
 echo "Syncing...."
 sync;sync;
 sync
 sync
 
-zip -r ${RELEASE_NAME}.zip ${RELEASE_NAME}
+#tar cJvf ${RELEASE_NAME}.tar.xz ${RELEASE_NAME}
+tar zcvf ${RELEASE_NAME}.tar.gz ${RELEASE_NAME}
 
 rm -rf ${RELEASE_ROOT}
 echo "[Done]"
+
