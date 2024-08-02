@@ -21,6 +21,38 @@ import (
 
 var detectStatus = make(map[string]string)
 
+func getDetect(module string) (string, string, string) {
+	aiCfg := config.GetAiConfig()
+	detectPath := ""
+	outPath := ""
+	inputPath := ""
+	switch module {
+	case "car_image":
+		outPath = aiCfg.Car_Image.OutPath
+		inputPath = aiCfg.Car_Image.InputPath
+		detectPath = aiCfg.Car_Image.DetectPath
+	case "car_video":
+		outPath = aiCfg.Car_Video.OutPath
+		inputPath = aiCfg.Car_Video.InputPath
+		detectPath = aiCfg.Car_Video.DetectPath
+	case "object_image":
+		outPath = aiCfg.Object_Image.OutPath
+		inputPath = aiCfg.Object_Image.InputPath
+		detectPath = aiCfg.Object_Image.DetectPath
+	case "object_video":
+		outPath = aiCfg.Object_Video.OutPath
+		inputPath = aiCfg.Object_Video.InputPath
+		detectPath = aiCfg.Object_Video.DetectPath
+	case "mask_image":
+		outPath = aiCfg.Mask_Image.OutPath
+		inputPath = aiCfg.Mask_Image.InputPath
+		detectPath = aiCfg.Mask_Image.DetectPath
+
+	}
+
+	return detectPath, inputPath, outPath
+}
+
 func detect(command, detectPath, inputPath string) error {
 	cmd := exec.Command(command, detectPath, inputPath)
 	klog.Infof("cmd path: %s, args: %v", cmd.Path, cmd.Args)
@@ -66,10 +98,11 @@ func GetDetectStatus(c *gin.Context) {
 func GetDetectImage(c *gin.Context) {
 	filename := c.Param("filename")
 	tp := c.Query("type")
-	aiCfg := config.GetAiConfig()
-	filePath := path.Join(aiCfg.OutPath, filename)
+	module := c.Query("module")
+	_, inputPath, outPath := getDetect(module)
+	filePath := path.Join(outPath, filename)
 	if tp == "data" {
-		filePath = path.Join(aiCfg.InputPath, filename)
+		filePath = path.Join(inputPath, filename)
 	}
 
 	image, err := os.ReadFile(filePath)
@@ -86,10 +119,11 @@ func GetDetectImage(c *gin.Context) {
 func GetDetectVideo(c *gin.Context) {
 	filename := c.Param("filename")
 	tp := c.Query("type")
-	aiCfg := config.GetAiConfig()
-	filePath := path.Join(aiCfg.OutPath, "display", filename)
+	module := c.Query("module")
+	_, inputPath, outPath := getDetect(module)
+	filePath := path.Join(outPath, "display", filename)
 	if tp == "data" {
-		filePath = path.Join(aiCfg.InputPath, filename)
+		filePath = path.Join(inputPath, filename)
 	}
 
 	file, err := os.Open(filePath)
@@ -110,8 +144,9 @@ func GetDetectVideo(c *gin.Context) {
 
 func GetDetectedFiles(c *gin.Context) {
 	tp := c.Query("type")
-	aiCfg := config.GetAiConfig()
-	files, err := os.ReadDir(aiCfg.OutPath)
+	module := c.Query("module")
+	_, _, outPath := getDetect(module)
+	files, err := os.ReadDir(outPath)
 	if err != nil {
 		responce.FailWithMessage(err.Error(), c)
 		return
@@ -140,17 +175,19 @@ func AddAiDetect(c *gin.Context) {
 
 	file, err := c.FormFile("file")
 	tp := c.Param("type")
+	module := c.Param("module")
 	// 获取上传的文件
 	if err != nil {
 		responce.FailWithMessage(fmt.Sprintf("Upload file error: %v", err.Error()), c)
 		return
 	}
+	detectPath, inputPath, outPath := getDetect(module)
 	filename := file.Filename
 	aiCfg := config.GetAiConfig()
-	dstPath := path.Join(aiCfg.InputPath, filename)
+	dstPath := path.Join(inputPath, filename)
 	klog.Infof("dstPath: %s", dstPath)
-	if !utils.DirIsExist(aiCfg.InputPath) {
-		os.MkdirAll(aiCfg.InputPath, os.ModePerm)
+	if !utils.DirIsExist(inputPath) {
+		os.MkdirAll(inputPath, os.ModePerm)
 	}
 
 	err = c.SaveUploadedFile(file, dstPath)
@@ -158,22 +195,22 @@ func AddAiDetect(c *gin.Context) {
 		responce.FailWithMessage(fmt.Sprintf("Save file error: %v", err.Error()), c)
 		return
 	}
-	detectPath := aiCfg.InputPath
+
 	if tp == "video" {
-		detectPath = path.Join(detectPath, filename)
+		inputPath = path.Join(detectPath, filename)
 	}
 	detectStatus[filename] = "0"
-	if err := detect(aiCfg.Command, aiCfg.DetectPath, detectPath); err != nil {
+	if err := detect(aiCfg.Command, detectPath, inputPath); err != nil {
 		detectStatus[filename] = "1"
 		responce.FailWithMessage(err.Error(), c)
 		return
 	}
 	if tp == "video" {
-		displayDir := path.Join(aiCfg.OutPath, "display")
+		displayDir := path.Join(outPath, "display")
 		if !utils.DirIsExist(displayDir) {
 			os.MkdirAll(displayDir, os.ModePerm)
 		}
-		outPath := path.Join(aiCfg.OutPath, filename)
+		outPath := path.Join(outPath, filename)
 		displayPath := path.Join(displayDir, filename)
 		time.Sleep(1 * time.Second)
 		if err := ffmpegConvert(aiCfg.FFMPEGPath, outPath, displayPath); err != nil {
@@ -188,12 +225,14 @@ func AddAiDetect(c *gin.Context) {
 }
 func ConvertFormat(c *gin.Context) {
 	filename := c.Param("filename")
+	module := c.Param("module")
+	_, _, outPath := getDetect(module)
 	aiCfg := config.GetAiConfig()
-	displayDir := path.Join(aiCfg.OutPath, "display")
+	displayDir := path.Join(outPath, "display")
 	if !utils.DirIsExist(displayDir) {
 		os.MkdirAll(displayDir, os.ModePerm)
 	}
-	outPath := path.Join(aiCfg.OutPath, filename)
+	outPath = path.Join(outPath, filename)
 	displayPath := path.Join(displayDir, filename)
 	if err := ffmpegConvert(aiCfg.FFMPEGPath, outPath, displayPath); err != nil {
 		responce.FailWithMessage(err.Error(), c)
@@ -203,11 +242,11 @@ func ConvertFormat(c *gin.Context) {
 }
 func DeleteAiDetect(c *gin.Context) {
 	filename := c.Param("filename")
-
-	aiCfg := config.GetAiConfig()
-	inputPath := path.Join(aiCfg.InputPath, filename)
-	outputPath := path.Join(aiCfg.OutPath, filename)
+	module := c.Param("module")
+	_, inputPath, outPath := getDetect(module)
+	inputPath = path.Join(inputPath, filename)
+	outPath = path.Join(outPath, filename)
 	defer os.Remove(inputPath)
-	defer os.Remove(outputPath)
+	defer os.Remove(outPath)
 	responce.Ok(c)
 }

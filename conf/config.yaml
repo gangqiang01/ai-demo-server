@@ -4,8 +4,25 @@ webserver:
   ssl_cert_file: ""
   ssl_key_file: ""
 ai:
-  command: python
-  detectPath: /home/gangqiangsun/MYPROJECT/PYTHON/yolov5/detect.py
-  inputPath: /home/gangqiangsun/MYPROJECT/PYTHON/yolov5/input
-  outPath: /opt
+  command: python3
   ffmpegPath: ./ffmpeg/ffmpeg
+  car_image:
+    detectPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV4_coco_detection_car_picture/src/yolov4.py
+    inputPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV4_coco_detection_car_picture/data
+    outPath: /opt/out
+  car_video:
+    detectPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV4_coco_detection_car_video/src/yolov4.py
+    inputPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV4_coco_detection_car_video/data
+    outPath: /opt/out
+  object_image:
+    detectPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV4_coco_detection_picture/src/yolov4.py
+    inputPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV4_coco_detection_picture/data
+    outPath: /opt/out
+  object_video:
+    detectPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV4_coco_detection_video/src/yolov4.py
+    inputPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV4_coco_detection_video/data
+    outPath: /opt/out
+  mask_image:
+    detectPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV3_mask_detection_picture/src/mask_detect.py
+    inputPath: /usr/local/samples/python/level2_simple_inference/2_object_detection/YOLOV3_mask_detection_picture/data
+    outPath: /opt/out

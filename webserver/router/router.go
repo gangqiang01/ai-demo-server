@@ -30,7 +30,7 @@ func InitRouter() *gin.Engine {
 	detect.GET("/image/:filename", v1.GetDetectImage)
 	detect.GET("/video/:filename", v1.GetDetectVideo)
 	detect.GET("/detected", v1.GetDetectedFiles)
-	detect.POST("/:type", v1.AddAiDetect)
+	detect.POST("/:type/:module", v1.AddAiDetect)
 	detect.GET("/convert/:filename", v1.ConvertFormat)
 	detect.DELETE("/:filename", v1.DeleteAiDetect)
 
