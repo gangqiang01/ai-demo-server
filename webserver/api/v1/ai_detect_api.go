@@ -102,7 +102,7 @@ func GetDetectImage(c *gin.Context) {
 	_, inputPath, outPath := getDetect(module)
 	filePath := path.Join(outPath, filename)
 	if tp == "data" {
-		filePath = path.Join(inputPath, filename)
+		filePath = path.Join(inputPath, "display", filename)
 	}
 
 	image, err := os.ReadFile(filePath)
@@ -195,16 +195,17 @@ func AddAiDetect(c *gin.Context) {
 		responce.FailWithMessage(fmt.Sprintf("Save file error: %v", err.Error()), c)
 		return
 	}
-
+	inputFile := inputPath
 	if tp == "video" {
-		inputPath = path.Join(detectPath, filename)
+		inputFile = path.Join(inputPath, filename)
 	}
 	detectStatus[filename] = "0"
-	if err := detect(aiCfg.Command, detectPath, inputPath); err != nil {
+	if err := detect(aiCfg.Command, detectPath, inputFile); err != nil {
 		detectStatus[filename] = "1"
 		responce.FailWithMessage(err.Error(), c)
 		return
 	}
+
 	if tp == "video" {
 		displayDir := path.Join(outPath, "display")
 		if !utils.DirIsExist(displayDir) {
@@ -217,6 +218,17 @@ func AddAiDetect(c *gin.Context) {
 			detectStatus[filename] = "1"
 			responce.FailWithMessage(err.Error(), c)
 			return
+		}
+	} else {
+		displayDir := path.Join(inputPath, "display")
+		if !utils.DirIsExist(displayDir) {
+			os.MkdirAll(displayDir, os.ModePerm)
+		}
+		displayFile := path.Join(displayDir, filename)
+		if err := utils.FileCopy(dstPath, displayFile); err != nil {
+			klog.Errorf("Copying detection file to display directory error: %v", err.Error())
+		} else {
+			os.Remove(dstPath)
 		}
 	}
 
